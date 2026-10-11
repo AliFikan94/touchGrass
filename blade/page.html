@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blade</title>
+<style>
+:root{--grass:#2f5d3a;--live:#5fbf4a;--light:#faf6ea;--gold:#f3e8bd;--card:#fffdf5;--dusk:#6b7a8a;--bark:#3f352c;--line:#e3dcc3}
+:root[data-theme=dark]{--light:#18211b;--gold:#26352a;--card:#1f2b22;--bark:#ebe6d3;--dusk:#9fb0bd;--line:#33443a;--grass:#8fcf86}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--light:#18211b;--gold:#26352a;--card:#1f2b22;--bark:#ebe6d3;--dusk:#9fb0bd;--line:#33443a;--grass:#8fcf86}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--light);color:var(--bark);font:18px/1.6 Georgia,"Times New Roman",serif}
+main{max-width:34rem;margin:0 auto;padding:1.5rem 16px 4rem}
+header{display:flex;align-items:center;gap:.75rem}
+h1{margin:0;font-weight:400;letter-spacing:.06em;color:var(--grass);font-size:2rem}
+.tag{color:var(--dusk);margin:.25rem 0 0}
+#status{color:var(--dusk);font-style:italic;min-height:1.6em}
+h2{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dusk);font-weight:400;margin:1.4rem 0 .5rem}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{font:inherit;font-size:.95rem;padding:.4rem .9rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--bark);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--grass);border-color:var(--grass);color:var(--light)}
+:root[data-theme=dark] .chip[aria-pressed=true]{color:#10240f}
+.chip:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--live);outline-offset:2px}
+.loc{font-size:.95rem;color:var(--dusk);margin-top:.9rem}
+.loc button.link{background:none;border:0;color:var(--grass);text-decoration:underline;font:inherit;cursor:pointer;padding:0}
+details{margin-top:.5rem;font-size:.95rem}summary{cursor:pointer;color:var(--dusk)}
+.coords{display:flex;gap:.5rem;margin-top:.5rem}
+input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--bark);width:100%}
+.go{display:block;width:100%;margin-top:1.6rem;padding:.9rem;border:0;border-radius:12px;background:var(--grass);color:var(--light);font:inherit;font-size:1.1rem;cursor:pointer}
+:root[data-theme=dark] .go{color:#10240f}
+.go:disabled{opacity:.6;cursor:wait}
+#out{margin-top:1.5rem}
+.wait{text-align:center;color:var(--dusk);padding:1.5rem 0}
+.wait svg{animation:sway 2.4s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes sway{50%{transform:rotate(7deg)}}
+@media(prefers-reduced-motion:reduce){.wait svg{animation:none}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:1.2rem 1.3rem;box-shadow:0 1px 0 var(--line)}
+.card h3{margin:1rem 0 .3rem;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dusk);font-weight:400}
+.card h3:first-child{margin-top:0}
+.task{display:flex;gap:.7rem;align-items:flex-start;margin:.5rem 0;cursor:pointer}
+.task input{width:1.3rem;height:1.3rem;margin-top:.3rem;accent-color:var(--live);flex:none}
+.task input:checked+span{color:var(--dusk);text-decoration:line-through}
+.close{margin:1.1rem 0 0;padding-top:.9rem;border-top:1px dashed var(--line);font-style:italic;color:var(--grass)}
+.src{margin-top:.8rem;font-size:.8rem;color:var(--dusk)}
+.row{display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap}
+.done{flex:1;padding:.8rem;border:0;border-radius:12px;background:var(--live);color:#10240f;font:inherit;cursor:pointer;min-width:10rem}
+.alt{padding:.8rem 1rem;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--bark);font:inherit;cursor:pointer}
+.win{text-align:center;padding:2rem 1rem;background:var(--gold);border-radius:16px}
+.win p{margin:.4rem 0}.big{font-size:1.4rem;color:var(--grass)}
+.err{color:#9b3b2e}
+</style></head>
+<body><main>
+<header>
+ <svg width="34" height="44" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 43C16 30 13 18 5 3c10 6 16 17 17 30 1-9 3-16 7-22-2 12-3 22-5 32z" fill="#5fbf4a"/><path d="M17 43C16 30 13 18 5 3" fill="none" stroke="#2f5d3a" stroke-width="1.5" stroke-linecap="round"/></svg>
+ <div><h1>Blade</h1><p class="tag">Step outside. Touch a blade. Notice the world.</p></div>
+</header>
+<p id="status" aria-live="polite"></p>
+
+<h2>How long have you got?</h2>
+<div class="chips" id="mins" role="group" aria-label="Minutes free"></div>
+
+<h2>What do you feel like noticing?</h2>
+<div class="chips" id="ints" role="group" aria-label="Interests"></div>
+
+<div class="loc"><span id="locTxt">Place: not set.</span> <button class="link" id="geo">Use my location</button>
+ <details><summary>Set it by hand</summary>
+ <div class="coords"><input id="lat" type="number" step="any" placeholder="Latitude" aria-label="Latitude"><input id="lon" type="number" step="any" placeholder="Longitude" aria-label="Longitude"></div></details>
+ <div>Your place stays on this device. It is only used to work out season and daylight.</div></div>
+
+<button class="go" id="go">Get today's Blade</button>
+<div id="out" aria-live="polite"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const MINS=[10,20,30,45], INTS=['birds','plants','trees','light','senses','water'];
+let state={mins:20,ints:[],lat:null,lon:null,speak:false,blade:null};
+try{Object.assign(state,JSON.parse(localStorage.getItem('blade')||'{}'))}catch(e){}
+const openHand=()=>{document.querySelector('details').open=true};
+const save=()=>{try{localStorage.setItem('blade',JSON.stringify({mins:state.mins,ints:state.ints,lat:state.lat,lon:state.lon}))}catch(e){}};
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function chips(){
+ $('mins').innerHTML=MINS.map(m=>`<button class="chip" aria-pressed="${state.mins===m}" data-m="${m}">${m} min</button>`).join('');
+ $('ints').innerHTML=INTS.map(i=>`<button class="chip" aria-pressed="${state.ints.includes(i)}" data-i="${i}">${i}</button>`).join('');
+ $('mins').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.mins=+b.dataset.m;save();chips()});
+ $('ints').querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=b.dataset.i;state.ints=state.ints.includes(i)?state.ints.filter(x=>x!==i):[...state.ints,i];save();chips()});
+}
+function place(){
+ if(state.lat!=null&&state.lon!=null){$('locTxt').textContent=`Place: ${(+state.lat).toFixed(2)}, ${(+state.lon).toFixed(2)}.`;$('lat').value=state.lat;$('lon').value=state.lon}
+}
+$('geo').onclick=()=>{
+ if(!navigator.geolocation){$('locTxt').textContent='Location is not available here. Set it by hand.';openHand();return}
+ $('locTxt').textContent='Finding you...';
+ navigator.geolocation.getCurrentPosition(p=>{state.lat=p.coords.latitude;state.lon=p.coords.longitude;save();place()},
+  ()=>{$('locTxt').textContent='Could not get your location. Set it by hand.';openHand()},{timeout:10000});
+};
+['lat','lon'].forEach(id=>$(id).onchange=()=>{state[id]=$(id).value===''?null:+$(id).value;save();place()});
+async function stats(){try{const s=await (await fetch('/api/stats')).json();$('status').textContent=s.message;state.speak=s.speech}catch(e){}}
+const BLADE_SVG='<svg width="40" height="52" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 43C16 30 13 18 5 3c10 6 16 17 17 30 1-9 3-16 7-22-2 12-3 22-5 32z" fill="#5fbf4a"/></svg>';
+let timer;
+$('go').onclick=async()=>{
+ if(state.lat==null||state.lon==null){$('out').innerHTML='<p class="err">Set your place first, so Blade can work out the season and daylight.</p>';openHand();return}
+ $('go').disabled=true;let t=0;
+ const wait=()=>{$('out').innerHTML=`<div class="wait">${BLADE_SVG}<div>Listening to the grass... ${t}s</div>${t>15?'<div style="font-size:.85rem">The first Blade wakes the model up, so it can take a minute.</div>':''}</div>`};
+ wait();timer=setInterval(()=>{t++;wait()},1000);
+ try{
+  const r=await fetch('/api/blade',{method:'POST',body:JSON.stringify({minutes:state.mins,lat:state.lat,lon:state.lon,interests:state.ints})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||'failed');
+  state.blade=d.blade;show(d);
+ }catch(e){$('out').innerHTML='<p class="err">Something went wrong. Try again.</p>'}
+ finally{clearInterval(timer);$('go').disabled=false}
+};
+function show(d){
+ const b=d.blade;
+ const src=d.source==='model'?`Written on this device by ${esc(d.model)}.`:`A preset Blade. ${d.note?esc(d.note):''}`;
+ $('out').innerHTML=`<div class="card"><h3>Move</h3><label class="task"><input type="checkbox"><span>${esc(b.movement)}</span></label>
+ <h3>Notice</h3>${b.observations.map(o=>`<label class="task"><input type="checkbox"><span>${esc(o)}</span></label>`).join('')}
+ <p class="close">${esc(b.closing)}</p><p class="src">${src}</p></div>
+ <div class="row"><button class="done" id="ok">Blade complete</button>${state.speak?'<button class="alt" id="ls">Listen</button>':''}<button class="alt" id="again">Another</button></div><audio id="au"></audio>`;
+ $('ok').onclick=async()=>{await fetch('/api/complete',{method:'POST',body:JSON.stringify(b)});
+  const s=await (await fetch('/api/stats')).json();
+  $('out').innerHTML=`<div class="win">${BLADE_SVG}<p class="big">${esc(s.message)}</p><p>${s.streak>1?`Blade streak: ${s.streak} days`:'You showed up. That is enough.'}</p></div>`;stats()};
+ $('again').onclick=()=>$('go').click();
+ if($('ls'))$('ls').onclick=async()=>{const r=await fetch('/api/speak',{method:'POST',body:JSON.stringify(b)});
+  if(!r.ok){$('ls').textContent='Voice unavailable';return}$('au').src=URL.createObjectURL(await r.blob());$('au').play()};
+}
+chips();place();stats();
+</script></body></html>

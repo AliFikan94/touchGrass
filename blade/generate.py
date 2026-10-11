@@ -18,7 +18,7 @@ def _valid(d):
 
 
 def make_blade(facts, interests=(), model="gemma3:4b", url="http://localhost:11434",
-               use_llm=True, rng=None, on_error=None):
+               use_llm=True, rng=None, on_error=None, timeout=120):
     """Return (blade_dict, source) where source is 'model' or 'fallback'.
 
     `on_error(reason)` is called with a human-readable reason whenever the model path fails.
@@ -27,7 +27,8 @@ def make_blade(facts, interests=(), model="gemma3:4b", url="http://localhost:114
     movement, obs = candidates(facts, interests, rng=rng)
     if use_llm:
         try:
-            raw = generate(_prompt(facts, movement, obs), SYSTEM, model, url, as_json=True)
+            raw = generate(_prompt(facts, movement, obs), SYSTEM, model, url, as_json=True,
+                       timeout=timeout, keep_alive="30m")
             data = json.loads(raw)
             if _valid(data):
                 data["observations"] = [o.strip() for o in data["observations"]]

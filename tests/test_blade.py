@@ -119,7 +119,7 @@ class WebTests(unittest.TestCase):
             r = urllib.request.Request(url + path, json.dumps(obj).encode())
             return json.load(urllib.request.urlopen(r))
 
-        out = post("/api/blade", {"lat": 40.7, "lon": -74, "minutes": 20, "interest": "birds"})
+        out = post("/api/blade", {"lat": 40.7, "lon": -74, "minutes": 20, "interests": ["birds"]})
         self.assertEqual(out["source"], "fallback")
         post("/api/complete", out["blade"])
         st = json.load(urllib.request.urlopen(url + "/api/stats"))
@@ -197,3 +197,21 @@ class ReasonTests(unittest.TestCase):
         reasons = []
         make_blade(facts(), url=url, on_error=reasons.append)
         self.assertIn("not in the expected shape", reasons[0])
+
+
+class SlowModelTests(unittest.TestCase):
+    def test_slow_model_times_out_to_fallback_with_reason(self):
+        import time
+
+        class Slow(FakeOllama):
+            def do_POST(self):
+                time.sleep(2)
+                super().do_POST()
+
+        srv, url = serve(Slow)
+        reasons = []
+        t0 = time.time()
+        _, src = make_blade(facts(), url=url, timeout=1, on_error=reasons.append)
+        self.assertEqual(src, "fallback")
+        self.assertLess(time.time() - t0, 2)
+        self.assertIn("timed out", reasons[0])
