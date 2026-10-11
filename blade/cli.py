@@ -41,7 +41,8 @@ def main(argv=None):
     if a.cmd == "today":
         facts = build_facts(datetime.now().astimezone(), a.lat, a.lon, a.minutes, a.weather,
                             [i.lower() for i in a.interest])
-        blade, src = make_blade(facts, [i.lower() for i in a.interest], a.model, a.ollama_url, not a.no_llm)
+        blade, src = make_blade(facts, [i.lower() for i in a.interest], a.model, a.ollama_url, not a.no_llm,
+                               on_error=lambda r: print(f"[model skipped: {r}]", file=sys.stderr))
         print(render(blade))
         print(f"\n[{src}]", file=sys.stderr)
         if a.speak:

@@ -24,5 +24,7 @@ def generate(prompt, system, model=DEFAULT_MODEL, url=DEFAULT_URL, as_json=False
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)["response"].strip()
+    except urllib.error.HTTPError as exc:
+        raise LLMUnavailable(f"HTTP {exc.code}: {exc.read()[:200].decode(errors='replace')}") from exc
     except (urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError) as exc:
         raise LLMUnavailable(str(exc)) from exc

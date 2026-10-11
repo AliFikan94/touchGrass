@@ -181,3 +181,19 @@ class SpeechTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(urllib.request.Request(url + "/api/speak", json.dumps(self.BLADE).encode()))
         self.assertEqual(cm.exception.code, 503)
+
+
+class ReasonTests(unittest.TestCase):
+    def test_reports_why_it_fell_back(self):
+        reasons = []
+        make_blade(facts(), url="http://127.0.0.1:9", on_error=reasons.append)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("could not reach the model", reasons[0])
+
+    def test_reports_bad_shape(self):
+        class Bad(FakeOllama):
+            reply = {"movement": "x"}
+        srv, url = serve(Bad)
+        reasons = []
+        make_blade(facts(), url=url, on_error=reasons.append)
+        self.assertIn("not in the expected shape", reasons[0])

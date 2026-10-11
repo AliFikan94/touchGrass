@@ -18,8 +18,11 @@ def _valid(d):
 
 
 def make_blade(facts, interests=(), model="gemma3:4b", url="http://localhost:11434",
-               use_llm=True, rng=None):
-    """Return (blade_dict, source) where source is 'model' or 'fallback'."""
+               use_llm=True, rng=None, on_error=None):
+    """Return (blade_dict, source) where source is 'model' or 'fallback'.
+
+    `on_error(reason)` is called with a human-readable reason whenever the model path fails.
+    """
     import json
     movement, obs = candidates(facts, interests, rng=rng)
     if use_llm:
@@ -29,6 +32,14 @@ def make_blade(facts, interests=(), model="gemma3:4b", url="http://localhost:114
             if _valid(data):
                 data["observations"] = [o.strip() for o in data["observations"]]
                 return data, "model"
-        except (LLMUnavailable, json.JSONDecodeError):
-            pass
+            _report(on_error, f"model replied, but not in the expected shape: {raw[:300]}")
+        except LLMUnavailable as exc:
+            _report(on_error, f"could not reach the model at {url} ({exc})")
+        except json.JSONDecodeError:
+            _report(on_error, f"model reply was not valid JSON: {raw[:300]}")
     return fallback_blade(movement, obs), "fallback"
+
+
+def _report(on_error, reason):
+    if on_error:
+        on_error(reason)
