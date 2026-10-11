@@ -24,6 +24,7 @@ details{margin-top:.5rem;font-size:.95rem}summary{cursor:pointer;color:var(--dus
 .coords{display:flex;gap:.5rem;margin-top:.5rem}
 input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--bark);width:100%}
 .live{display:flex;gap:.6rem;margin-top:1.1rem;font-size:.95rem;cursor:pointer}.live input{width:1.2rem;height:1.2rem;margin-top:.3rem;flex:none;accent-color:var(--live)}.live small{display:block;color:var(--dusk);font-size:.8rem;line-height:1.4}
+.grass{display:flex;gap:.45rem;align-items:flex-end;margin:-.3rem 0 .6rem;height:34px}.grass svg{opacity:.28;filter:grayscale(.6)}.grass svg.on{opacity:1;filter:none}.grass small{color:var(--dusk);font-size:.8rem;margin-left:.4rem;align-self:center}
 .ctx{margin:0 0 .8rem;color:var(--dusk);font-size:.9rem}
 .go{display:block;width:100%;margin-top:1.6rem;padding:.9rem;border:0;border-radius:12px;background:var(--grass);color:var(--light);font:inherit;font-size:1.1rem;cursor:pointer}
 :root[data-theme=dark] .go{color:#10240f}
@@ -54,6 +55,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
  <div><h1>Blade</h1><p class="tag">Step outside. Touch a blade. Notice the world.</p></div>
 </header>
 <p id="status" aria-live="polite"></p>
+<div id="week" aria-label="Your last seven days" role="img"></div>
 
 <h2>How long have you got?</h2>
 <div class="chips" id="mins" role="group" aria-label="Minutes free"></div>
@@ -79,6 +81,9 @@ let state={mins:20,ints:[],live:false,lat:null,lon:null,speak:false,blade:null};
 try{Object.assign(state,JSON.parse(localStorage.getItem('blade')||'{}'))}catch(e){}
 const openHand=()=>{document.querySelector('details').open=true};
 const save=()=>{try{localStorage.setItem('blade',JSON.stringify({mins:state.mins,ints:state.ints,live:state.live,lat:state.lat,lon:state.lon}))}catch(e){}};
+function weekRow(s){const w=$('week');w.className='grass';
+ w.setAttribute('aria-label',`${s.week.filter(Boolean).length} of the last 7 days`);
+ w.innerHTML=s.week.map(on=>`<svg class="${on?'on':''}" width="14" height="30" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 43C16 30 13 18 5 3c10 6 16 17 17 30 1-9 3-16 7-22-2 12-3 22-5 32z" fill="#5fbf4a"/></svg>`).join('')+`<small>${s.total} collected</small>`}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function chips(){
  $('mins').innerHTML=MINS.map(m=>`<button class="chip" aria-pressed="${state.mins===m}" data-m="${m}">${m} min</button>`).join('');
@@ -96,7 +101,7 @@ $('geo').onclick=()=>{
   ()=>{$('locTxt').textContent='Could not get your location. Set it by hand.';openHand()},{timeout:10000});
 };
 ['lat','lon'].forEach(id=>$(id).onchange=()=>{state[id]=$(id).value===''?null:+$(id).value;save();place()});
-async function stats(){try{const s=await (await fetch('/api/stats')).json();$('status').textContent=s.message;state.speak=s.speech}catch(e){}}
+async function stats(){try{const s=await (await fetch('/api/stats')).json();$('status').textContent=s.message;state.speak=s.speech;weekRow(s)}catch(e){}}
 const BLADE_SVG='<svg width="40" height="52" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 43C16 30 13 18 5 3c10 6 16 17 17 30 1-9 3-16 7-22-2 12-3 22-5 32z" fill="#5fbf4a"/></svg>';
 let timer;
 $('go').onclick=async()=>{

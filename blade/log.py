@@ -33,7 +33,8 @@ def stats(today=None):
     while cur.isoformat() in done:
         streak += 1
         cur -= timedelta(days=1)
-    return {"total": len(done), "streak": streak, "done_today": today.isoformat() in done}
+    week = [(today - timedelta(days=i)).isoformat() in done for i in range(6, -1, -1)]  # oldest first
+    return {"total": len(done), "streak": streak, "done_today": today.isoformat() in done, "week": week}
 
 
 def message(s):

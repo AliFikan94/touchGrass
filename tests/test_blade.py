@@ -101,6 +101,7 @@ class LogTests(unittest.TestCase):
         s = log.stats(today)
         self.assertEqual(s["streak"], 3)
         self.assertEqual(log.message(s), "Blade streak: 3 days")
+        self.assertEqual(s["week"], [False, False, False, True, True, True, False])
         s = log.stats(today + timedelta(days=2))
         self.assertEqual(s["streak"], 0)
         self.assertIn("No streak pressure", log.message(s))
