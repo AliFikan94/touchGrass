@@ -13,6 +13,7 @@ No cloud, no API key, no account, no analytics. Your location and your log never
 ## Run it
 
 ```
+python main.py                   # opens the web page in your browser
 ollama pull gemma3:4b
 python -m blade today --lat 40.7 --lon -74 --minutes 20 --interest birds
 python -m blade serve            # local web page at http://127.0.0.1:8317
