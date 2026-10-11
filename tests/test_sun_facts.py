@@ -1,9 +1,8 @@
 import unittest
 from datetime import date, datetime, timedelta, timezone
 
-from trailhead.facts import build_facts, season_for
-from trailhead.planner import fallback_plan, make_plan
-from trailhead.sun import daylight_left, sun_times
+from blade.facts import build_facts, season_for
+from blade.sun import daylight_left, sun_times
 
 
 class SunTests(unittest.TestCase):
@@ -33,16 +32,6 @@ class PlanTests(unittest.TestCase):
     def test_frost_countdown(self):
         f = build_facts(self.now, 40.7, -74.0, 30, first_frost=date(2026, 10, 20))
         self.assertEqual(f.frost_in_days, 9)
-
-    def test_fallback_mentions_frost_for_gardeners(self):
-        f = build_facts(self.now, 40.7, -74.0, 60, "sunny", ["garden"], date(2026, 10, 15))
-        self.assertIn("Frost is 4 days away", fallback_plan(f))
-
-    def test_make_plan_falls_back_when_no_server(self):
-        f = build_facts(self.now, 40.7, -74.0, 30)
-        text, src = make_plan(f, "x", "http://127.0.0.1:9", use_llm=True)
-        self.assertEqual(src, "fallback")
-        self.assertIn("Phone away", text)
 
 
 if __name__ == "__main__":

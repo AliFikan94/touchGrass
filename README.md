@@ -1,18 +1,39 @@
-# Trailhead
+# Blade
 
-An offline-first "go outside now" planner. Tell it where you are and how long you have; it works out
-daylight and frost dates locally, then asks a **local open-weight model** (via [Ollama](https://ollama.com))
-to write a short plan that gets you off the screen. No cloud, no API key, no account.
+**Step outside. Touch a blade. Notice the world.**
+
+Blade is a daily outdoor ritual. Each day you get one short *Blade*: a movement task (usually a
+10-20 minute walk) and one to three light observation tasks (a sunflower opening, three birds,
+three tree barks, the colour of the sky). The screen hands you the Blade, then gets out of the way.
+
+A **local open-weight model (Gemma via [Ollama](https://ollama.com))** writes each Blade in Blade's
+voice from a curated quest library, grounded in facts computed on your device (season, daylight left).
+No cloud, no API key, no account, no analytics. Your location and your log never leave your machine.
+
+## Run it
 
 ```
-ollama pull gemma3:4b            # any small open-weight model works
-python -m trailhead --lat 40.7 --lon -74 --minutes 45 \
-    --weather "sunny, 14C" --interest bird --interest garden --first-frost 2026-10-25
+ollama pull gemma3:4b
+python -m blade today --lat 40.7 --lon -74 --minutes 20 --interest birds
+python -m blade serve            # local web page at http://127.0.0.1:8317
+python -m blade done             # log it (local file: ~/.blade/log.jsonl)
+python -m blade look leaf.jpg    # ask the local vision model about a photo
 ```
 
-- Daylight/sunset: computed with the sunrise equation (`trailhead/sun.py`), stdlib only.
-- The model only sees facts computed locally, so it can't invent sunset times.
-- No model running? It falls back to a rule-based plan (`--no-llm` forces this).
-- Swap models with `--model`; point at another machine with `--ollama-url`.
+Python 3.10+, standard library only. Tests: `python -m unittest discover -s tests`.
 
-Tests: `python -m unittest discover -s tests` (Python 3.10+, no dependencies).
+## How it works
+
+- `quests.py` is the library: movement + observation quests, filtered by time, season, interest.
+  No equipment and no fishing. Water gets watching tasks, not catch goals.
+- `facts.py` / `sun.py` compute season and daylight offline (sunrise equation), so the model cannot invent them.
+- `generate.py` sends Gemma the facts, one movement task and a menu of observations; it replies in JSON.
+  Output is validated; if the model is missing or misbehaves, a deterministic Blade is served instead,
+  so it works on a trail with no signal and no model at all (`--no-llm` forces this).
+- `voice.py` is the whole brand voice as one editable prompt. Swap the model with `--model`.
+- `log.py` stores completions locally. Missed day copy: "No streak pressure. Just step outside when you can."
+
+## Why open
+
+Offline on the trail; location and photos stay private; free to run; swap or fine-tune the model;
+change the voice by editing a text file.
