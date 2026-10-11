@@ -31,6 +31,18 @@ Low on memory? Use the 1B model: `ollama pull gemma3:1b`, then set `BLADE_MODEL=
 
 Python 3.10+, standard library only. Tests: `python -m unittest discover -s tests`.
 
+## Local to where you are
+
+- **Offline place sense (always on):** from your latitude and the date, Blade works out the hemisphere-correct
+  season and climate band, and what is typically showing there now (leaf turn, nesting, wet or dry season).
+  In the tropics it knows there is no autumn.
+- **Make it local (opt in):** `--live` or the checkbox on the page also fetches current weather
+  ([Open-Meteo](https://open-meteo.com)), a place name ([OpenStreetMap](https://nominatim.org)) and what people
+  recorded within 5 km in the last two weeks ([iNaturalist](https://www.inaturalist.org)). Tasks then name real
+  nearby species, and rain becomes "watch rain on leaves". Off by default; your location is rounded to ~1 km
+  before it is sent; results are cached; with no network you just get the offline Blade.
+- Species names come from those records, never from the model's memory, so a small model can't invent them.
+
 ## How it works
 
 - `quests.py` is the library: movement + observation quests, filtered by time, season, interest.

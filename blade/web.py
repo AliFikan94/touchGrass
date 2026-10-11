@@ -5,7 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import log, speech
+from . import live as livemod, log, speech
 from .facts import build_facts
 from .generate import make_blade
 
@@ -13,6 +13,22 @@ PAGE = (Path(__file__).parent / "page.html").read_text(encoding="utf-8")
 
 
 WEB_TIMEOUT = 60
+
+
+def context(f):
+    bits = [f"{f.season.capitalize()}, {f.climate}"]
+    if f.place_name:
+        bits.append(f.place_name)
+    if f.weather != "unknown":
+        bits.append(f.weather)
+    return " \u00b7 ".join(bits)
+
+
+def live_status(body, data):
+    if body.get("live") is not True:
+        return "off"
+    got = data and (data["weather"] or data["place"] or data["sightings"])
+    return "on" if got else "unavailable"
 
 
 def make_handler(model, url, use_llm):
@@ -43,13 +59,16 @@ def make_handler(model, url, use_llm):
                 b = self._body()
                 if self.path == "/api/blade":
                     ints = [str(i) for i in b.get("interests", [])][:6]
-                    facts = build_facts(datetime.now().astimezone(), float(b["lat"]), float(b["lon"]),
-                                        int(b["minutes"]), "unknown", ints)
+                    lat, lon = float(b["lat"]), float(b["lon"])
+                    data = livemod.gather(lat, lon) if b.get("live") is True else None
+                    facts = build_facts(datetime.now().astimezone(), lat, lon,
+                                        int(b["minutes"]), "unknown", ints, live=data)
                     notes = []
                     blade, src = make_blade(facts, ints, model, url, use_llm,
                                             on_error=notes.append, timeout=WEB_TIMEOUT)
                     self._send(200, json.dumps({"blade": blade, "source": src, "model": model,
-                                                "note": notes[0] if notes else ""}))
+                                                "note": notes[0] if notes else "",
+                                                "context": context(facts), "live": live_status(b, data)}))
                 elif self.path == "/api/speak":
                     try:
                         self._send(200, speech.synthesize(b), "audio/mpeg")

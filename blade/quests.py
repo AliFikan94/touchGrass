@@ -61,14 +61,39 @@ def candidates(facts, interests=(), n=6, rng=None):
     edge = 0 < facts.daylight_min < 90
     fits = [m for m in fits if m.get("needs") != "daylight_edge" or edge] or fits
     movement = rng.choice(fits)
+    season = facts.season_key or facts.season
     pool = [o for o in OBSERVATION
-            if facts.season in o.get("seasons", [facts.season])
+            if season in o.get("seasons", [season])
             and o.get("needs_move", movement["id"]) == movement["id"]]
     liked = [o for o in pool if o["tag"] in interests]
     rest = [o for o in pool if o not in liked]
     rng.shuffle(liked)
     rng.shuffle(rest)
-    return movement, (liked + rest)[:n]
+    wet = any(w in facts.weather.lower() for w in ("rain", "drizzle", "shower", "snow", "storm"))
+    first = [o for o in pool if o["id"] == "rainleaf"] if wet else []
+    local = sighting_quests(facts, interests, rng)
+    return movement, _dedupe(local + first + liked + rest)[:n]
+
+
+def sighting_quests(facts, interests, rng):
+    """Observation tasks built from real recent local records (only present with the live layer)."""
+    quests = []
+    for s in facts.sightings:
+        verb = {"birds": "Listen and look for", "plants": "Look for"}.get(s["group"], "Look for")
+        quests.append({"id": "seen:" + s["common"], "tag": s["group"] if s["group"] in ("birds", "plants") else "birds",
+                       "text": f"{verb} a {s['common']}. Someone recorded one near here in the last two weeks."})
+    rng.shuffle(quests)
+    pref = [q for q in quests if q["tag"] in interests]
+    return (pref + [q for q in quests if q not in pref])[:2]
+
+
+def _dedupe(items):
+    seen, out = set(), []
+    for o in items:
+        if o["id"] not in seen:
+            seen.add(o["id"])
+            out.append(o)
+    return out
 
 
 def fallback_blade(movement, obs, count=2):

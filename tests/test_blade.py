@@ -215,3 +215,118 @@ class SlowModelTests(unittest.TestCase):
         self.assertEqual(src, "fallback")
         self.assertLess(time.time() - t0, 2)
         self.assertIn("timed out", reasons[0])
+
+
+class PlaceTests(unittest.TestCase):
+    def test_bands_and_tropics(self):
+        from blade.place import climate_band
+        self.assertEqual([climate_band(x) for x in (6.5, 30, 45, 60, 75)],
+                         ["tropical", "subtropical", "temperate", "boreal", "polar"])
+        from blade.facts import season_for
+        self.assertEqual(season_for(date(2026, 10, 11), 6.5), "tropical")  # Lagos: no autumn
+
+    def test_autumn_temperate_notes_and_facts(self):
+        f = facts()
+        self.assertEqual(f.climate, "temperate")
+        self.assertIn("leaves turning", " ".join(f.place_notes))
+        self.assertIn("Typical here", "\n".join(f.lines()))
+
+    def test_tropics_keep_flowers_and_drop_leaf_colour(self):
+        f = build_facts(NOW, 6.5, 3.4, 30)
+        ids = set()
+        for seed in range(80):
+            _, obs = candidates(f, [], n=40, rng=random.Random(seed))
+            ids |= {o["id"] for o in obs}
+        self.assertIn("flowers3", ids)
+        self.assertNotIn("leafcolor", ids)
+        self.assertNotIn("frost", ids)
+
+
+class LiveFake(BaseHTTPRequestHandler):
+    hits = []
+
+    def do_GET(self):
+        LiveFake.hits.append(self.path)
+        if "/forecast" in self.path:
+            body = {"current": {"temperature_2m": 11.6, "weather_code": 61}}
+        elif "/reverse" in self.path:
+            body = {"address": {"suburb": "Riverside", "city": "Springfield"}}
+        else:
+            t = lambda n, c, g: {"taxon": {"name": n, "preferred_common_name": c, "iconic_taxon_name": g}}
+            body = {"results": [t("Cardinalis cardinalis", "Northern Cardinal", "Aves"),
+                                t("Quercus rubra", "Northern Red Oak", "Plantae"),
+                                t("Foo bar", None, "Aves"),
+                                t("Baz", "Mystery", "Protozoa")]}
+        data = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *a):
+        pass
+
+
+class LiveTests(unittest.TestCase):
+    def setUp(self):
+        from blade import live
+        os.environ["BLADE_HOME"] = tempfile.mkdtemp()
+        LiveFake.hits.clear()
+        self.live = live
+        srv, url = serve(LiveFake)
+        self.saved = dict(live.URLS)
+        live.URLS.update(weather=url + "/forecast", place=url + "/reverse", species=url + "/species")
+        self.addCleanup(lambda: live.URLS.update(self.saved))
+
+    def test_gather_parses_and_sends_only_rounded_coords(self):
+        out = self.live.gather(40.712776, -74.005974)
+        self.assertEqual(out["weather"], "light rain, 12C")
+        self.assertEqual(out["place"], "Riverside")
+        self.assertEqual([s["common"] for s in out["sightings"]], ["Northern Cardinal", "Northern Red Oak"])
+        joined = " ".join(LiveFake.hits)
+        self.assertIn("40.71", joined)
+        self.assertNotIn("40.7127", joined)
+        self.assertNotIn("74.0059", joined)
+
+    def test_cache_serves_when_network_dies(self):
+        self.live.gather(40.71, -74.0)
+        self.live.URLS.update(weather="http://127.0.0.1:9", place="http://127.0.0.1:9", species="http://127.0.0.1:9")
+        # cache is fresh, so no network needed; force-stale it and confirm stale data still beats nothing
+        import json as j, pathlib
+        p = self.live._cache_path()
+        c = j.loads(p.read_text())
+        for v in c.values():
+            v["t"] = 0
+        p.write_text(j.dumps(c))
+        out = self.live.gather(40.71, -74.0)
+        self.assertEqual(out["place"], "Riverside")
+
+    def test_no_network_no_cache_is_empty_not_an_error(self):
+        self.live.URLS.update(weather="http://127.0.0.1:9", place="http://127.0.0.1:9", species="http://127.0.0.1:9")
+        out = self.live.gather(1.0, 2.0)
+        self.assertEqual(out, {"weather": None, "place": None, "sightings": []})
+
+    def test_sightings_become_local_tasks_and_reach_the_prompt(self):
+        data = self.live.gather(40.71, -74.0)
+        f = build_facts(NOW, 40.71, -74.0, 20, live=data)
+        self.assertIn("Northern Cardinal", "\n".join(f.lines()))
+        _, obs = candidates(f, ["birds"], rng=random.Random(3))
+        texts = " ".join(o["text"] for o in obs[:2])
+        self.assertIn("Northern Cardinal", texts)
+        self.assertIn("rain", f.weather)
+
+    def test_web_live_is_opt_in(self):
+        os.environ["BLADE_HOME"] = tempfile.mkdtemp()
+        srv, url = serve(make_handler("m", "http://127.0.0.1:9", False))
+
+        def post(obj):
+            return json.load(urllib.request.urlopen(
+                urllib.request.Request(url + "/api/blade", json.dumps(obj).encode())))
+
+        base = {"lat": 40.71, "lon": -74.0, "minutes": 20}
+        LiveFake.hits.clear()
+        off = post(base)
+        self.assertEqual((off["live"], LiveFake.hits), ("off", []))
+        on = post({**base, "live": True})
+        self.assertEqual(on["live"], "on")
+        self.assertIn("Riverside", on["context"])

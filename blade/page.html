@@ -23,6 +23,8 @@ h2{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dus
 details{margin-top:.5rem;font-size:.95rem}summary{cursor:pointer;color:var(--dusk)}
 .coords{display:flex;gap:.5rem;margin-top:.5rem}
 input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--bark);width:100%}
+.live{display:flex;gap:.6rem;margin-top:1.1rem;font-size:.95rem;cursor:pointer}.live input{width:1.2rem;height:1.2rem;margin-top:.3rem;flex:none;accent-color:var(--live)}.live small{display:block;color:var(--dusk);font-size:.8rem;line-height:1.4}
+.ctx{margin:0 0 .8rem;color:var(--dusk);font-size:.9rem}
 .go{display:block;width:100%;margin-top:1.6rem;padding:.9rem;border:0;border-radius:12px;background:var(--grass);color:var(--light);font:inherit;font-size:1.1rem;cursor:pointer}
 :root[data-theme=dark] .go{color:#10240f}
 .go:disabled{opacity:.6;cursor:wait}
@@ -64,16 +66,19 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
  <div class="coords"><input id="lat" type="number" step="any" placeholder="Latitude" aria-label="Latitude"><input id="lon" type="number" step="any" placeholder="Longitude" aria-label="Longitude"></div></details>
  <div>Your place stays on this device. It is only used to work out season and daylight.</div></div>
 
+<label class="live"><input type="checkbox" id="live"> <span>Make it local: look up the weather and what has been seen nearby.
+ <small>Off by default. Sends your place, rounded to about 1 km, to Open-Meteo, OpenStreetMap and iNaturalist.</small></span></label>
+
 <button class="go" id="go">Get today's Blade</button>
 <div id="out" aria-live="polite"></div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 const MINS=[10,20,30,45], INTS=['birds','plants','trees','light','senses','water'];
-let state={mins:20,ints:[],lat:null,lon:null,speak:false,blade:null};
+let state={mins:20,ints:[],live:false,lat:null,lon:null,speak:false,blade:null};
 try{Object.assign(state,JSON.parse(localStorage.getItem('blade')||'{}'))}catch(e){}
 const openHand=()=>{document.querySelector('details').open=true};
-const save=()=>{try{localStorage.setItem('blade',JSON.stringify({mins:state.mins,ints:state.ints,lat:state.lat,lon:state.lon}))}catch(e){}};
+const save=()=>{try{localStorage.setItem('blade',JSON.stringify({mins:state.mins,ints:state.ints,live:state.live,lat:state.lat,lon:state.lon}))}catch(e){}};
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function chips(){
  $('mins').innerHTML=MINS.map(m=>`<button class="chip" aria-pressed="${state.mins===m}" data-m="${m}">${m} min</button>`).join('');
@@ -100,7 +105,7 @@ $('go').onclick=async()=>{
  const wait=()=>{$('out').innerHTML=`<div class="wait">${BLADE_SVG}<div>Listening to the grass... ${t}s</div>${t>15?'<div style="font-size:.85rem">The first Blade wakes the model up, so it can take a minute.</div>':''}</div>`};
  wait();timer=setInterval(()=>{t++;wait()},1000);
  try{
-  const r=await fetch('/api/blade',{method:'POST',body:JSON.stringify({minutes:state.mins,lat:state.lat,lon:state.lon,interests:state.ints})});
+  const r=await fetch('/api/blade',{method:'POST',body:JSON.stringify({minutes:state.mins,lat:state.lat,lon:state.lon,interests:state.ints,live:state.live})});
   const d=await r.json();if(!r.ok)throw new Error(d.error||'failed');
   state.blade=d.blade;show(d);
  }catch(e){$('out').innerHTML='<p class="err">Something went wrong. Try again.</p>'}
@@ -109,7 +114,8 @@ $('go').onclick=async()=>{
 function show(d){
  const b=d.blade;
  const src=d.source==='model'?`Written on this device by ${esc(d.model)}.`:`A preset Blade. ${d.note?esc(d.note):''}`;
- $('out').innerHTML=`<div class="card"><h3>Move</h3><label class="task"><input type="checkbox"><span>${esc(b.movement)}</span></label>
+ const liveNote=d.live==='unavailable'?' Live lookup unavailable, so this uses what Blade knows offline.':'';
+ $('out').innerHTML=`<div class="card"><p class="ctx">${esc(d.context)}${esc(liveNote)}</p><h3>Move</h3><label class="task"><input type="checkbox"><span>${esc(b.movement)}</span></label>
  <h3>Notice</h3>${b.observations.map(o=>`<label class="task"><input type="checkbox"><span>${esc(o)}</span></label>`).join('')}
  <p class="close">${esc(b.closing)}</p><p class="src">${src}</p></div>
  <div class="row"><button class="done" id="ok">Blade complete</button>${state.speak?'<button class="alt" id="ls">Listen</button>':''}<button class="alt" id="again">Another</button></div><audio id="au"></audio>`;
@@ -120,5 +126,6 @@ function show(d){
  if($('ls'))$('ls').onclick=async()=>{const r=await fetch('/api/speak',{method:'POST',body:JSON.stringify(b)});
   if(!r.ok){$('ls').textContent='Voice unavailable';return}$('au').src=URL.createObjectURL(await r.blob());$('au').play()};
 }
+$('live').checked=!!state.live;$('live').onchange=()=>{state.live=$('live').checked;save()};
 chips();place();stats();
 </script></body></html>

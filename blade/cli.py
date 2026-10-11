@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import log, speech
+from . import live as livemod, log, speech
 from .facts import build_facts
 from .generate import make_blade
 from .llm import DEFAULT_MODEL, DEFAULT_URL, LLMUnavailable, generate
@@ -28,6 +28,8 @@ def main(argv=None):
     t.add_argument("--minutes", type=int, default=20)
     t.add_argument("--weather", default="unknown")
     t.add_argument("--interest", action="append", default=[], help="birds plants trees light senses water")
+    t.add_argument("--live", action="store_true",
+                   help="opt in: look up local weather and recent sightings (sends location rounded to ~1 km)")
     t.add_argument("--speak", type=Path, metavar="OUT.mp3",
                    help="also save a spoken version (optional; needs ELEVENLABS_API_KEY)")
     sub.add_parser("done", help="log today's Blade as complete (local file only)")
@@ -39,8 +41,11 @@ def main(argv=None):
     a = p.parse_args(argv)
 
     if a.cmd == "today":
+        data = livemod.gather(a.lat, a.lon) if a.live else None
         facts = build_facts(datetime.now().astimezone(), a.lat, a.lon, a.minutes, a.weather,
-                            [i.lower() for i in a.interest])
+                            [i.lower() for i in a.interest], live=data)
+        if a.live and not (data["weather"] or data["place"] or data["sightings"]):
+            print("[live lookup unavailable: using offline place sense]", file=sys.stderr)
         blade, src = make_blade(facts, [i.lower() for i in a.interest], a.model, a.ollama_url, not a.no_llm,
                                on_error=lambda r: print(f"[model skipped: {r}]", file=sys.stderr))
         print(render(blade))
