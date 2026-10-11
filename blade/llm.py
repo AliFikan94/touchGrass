@@ -14,9 +14,9 @@ class LLMUnavailable(Exception):
 
 
 def generate(prompt, system, model=DEFAULT_MODEL, url=DEFAULT_URL, as_json=False,
-             images=None, timeout=180, keep_alive=None):
+             images=None, timeout=180, keep_alive=None, max_tokens=300):
     payload = {"model": model, "system": system, "prompt": prompt, "stream": False,
-               "options": {"num_predict": 300, "temperature": 0.7}}
+               "options": {"num_predict": max_tokens, "temperature": 0.7}}
     if keep_alive:
         payload["keep_alive"] = keep_alive
     if as_json:

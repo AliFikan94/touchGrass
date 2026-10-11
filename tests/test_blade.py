@@ -120,6 +120,8 @@ class WebTests(unittest.TestCase):
             r = urllib.request.Request(url + path, json.dumps(obj).encode())
             return json.load(urllib.request.urlopen(r))
 
+        lagos = post("/api/blade", {"lat": 6.5, "lon": 3.4, "minutes": 20})
+        self.assertEqual(lagos["context"], "Tropical")
         out = post("/api/blade", {"lat": 40.7, "lon": -74, "minutes": 20, "interests": ["birds"]})
         self.assertEqual(out["source"], "fallback")
         post("/api/complete", out["blade"])
@@ -331,3 +333,93 @@ class LiveTests(unittest.TestCase):
         on = post({**base, "live": True})
         self.assertEqual(on["live"], "on")
         self.assertIn("Riverside", on["context"])
+
+
+class FakeText(BaseHTTPRequestHandler):
+    reply = "Three birds today! The world is loud if you listen. You stayed out a while. More text here."
+    seen = []
+
+    def do_POST(self):
+        FakeText.seen.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+        body = json.dumps({"response": FakeText.reply}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+class ReflectTests(unittest.TestCase):
+    def setUp(self):
+        os.environ["BLADE_HOME"] = tempfile.mkdtemp()
+        FakeText.seen.clear()
+        FakeText.reply = "Three birds today! The world is loud if you listen. You stayed out a while. More text here."
+
+    def test_model_reply_is_trimmed_calm_and_grounded(self):
+        from blade.reflect import reflect
+        srv, url = serve(FakeText)
+        blade = {"movement": "Walk to the park.", "observations": ["See three birds."]}
+        reply, src = reflect("dove, pelican, mango tree", blade, url=url)
+        self.assertEqual(src, "model")
+        self.assertEqual(reply, "Three birds today. The world is loud if you listen.")
+        sent = FakeText.seen[0]
+        self.assertIn("dove, pelican, mango tree", sent["prompt"])
+        self.assertIn("Walk to the park.", sent["prompt"])
+        self.assertIn("Never invent", sent["system"])
+        self.assertLessEqual(sent["options"]["num_predict"], 100)
+
+    def test_questions_and_junk_fall_back(self):
+        from blade.reflect import reflect
+        FakeText.reply = "Did you enjoy it? What a day?"
+        srv, url = serve(FakeText)
+        reasons = []
+        reply, src = reflect("a dove", url=url, on_error=reasons.append)
+        self.assertEqual(src, "fallback")
+        self.assertIn("not usable", reasons[0])
+        self.assertEqual(reply, "Noticed today: a dove. The day is different now.")
+
+    def test_no_server_and_no_llm_fall_back(self):
+        from blade.reflect import reflect, fallback_reply
+        self.assertEqual(reflect("a dove", url="http://127.0.0.1:9")[1], "fallback")
+        self.assertEqual(reflect("a dove", use_llm=False)[1], "fallback")
+        self.assertEqual(fallback_reply("dove, pelican and a mango tree"),
+                         "Noticed today: dove, pelican, a mango tree. The day is different now.")
+        self.assertEqual(fallback_reply("   "), "You went outside. That is enough.")
+
+    def test_note_is_capped(self):
+        from blade.reflect import clean_note
+        self.assertEqual(len(clean_note("x" * 1000)), 300)
+
+    def test_annotation_does_not_count_as_a_day(self):
+        log.annotate("a dove", "reply")
+        self.assertEqual(log.stats()["total"], 0)
+        log.record({})
+        log.annotate("a dove", "reply")
+        self.assertEqual(log.stats()["total"], 1)
+
+    def test_web_reflect(self):
+        srv, url = serve(FakeText)
+        web, wurl = serve(make_handler("m", url, True))
+
+        def post(obj):
+            return urllib.request.urlopen(urllib.request.Request(wurl + "/api/reflect", json.dumps(obj).encode()))
+
+        out = json.load(post({"note": "dove, pelican, mango tree"}))
+        self.assertEqual((out["source"], out["reply"]),
+                         ("model", "Three birds today. The world is loud if you listen."))
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            post({"note": "   "})
+        self.assertEqual(cm.exception.code, 400)
+        saved = [json.loads(l) for l in log._path().read_text().splitlines()]
+        self.assertEqual(saved[0]["note"], "dove, pelican, mango tree")
+
+    def test_cli_done_with_note(self):
+        import contextlib, io
+        from blade.cli import main
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--no-llm", "done", "--note", "a dove, a pelican"])
+        self.assertIn("Blade complete", buf.getvalue())
+        self.assertIn("Noticed today: a dove, a pelican.", buf.getvalue())

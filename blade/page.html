@@ -47,6 +47,11 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
 .alt{padding:.8rem 1rem;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--bark);font:inherit;cursor:pointer}
 .win{text-align:center;padding:2rem 1rem;background:var(--gold);border-radius:16px}
 .win p{margin:.4rem 0}.big{font-size:1.4rem;color:var(--grass)}
+.note{margin-top:1.2rem;text-align:left}.note label{display:block;color:var(--dusk);font-size:.9rem;margin-bottom:.3rem}
+textarea{font:inherit;width:100%;padding:.55rem .7rem;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--bark);resize:vertical}
+.note button{margin-top:.6rem;padding:.6rem 1.1rem;border:0;border-radius:10px;background:var(--grass);color:var(--light);font:inherit;cursor:pointer}
+:root[data-theme=dark] .note button{color:#10240f}.note button:disabled{opacity:.6;cursor:wait}
+.reply{font-style:italic;font-size:1.15rem;color:var(--grass);margin:1.1rem 0 .2rem;text-align:left}
 .err{color:#9b3b2e}
 </style></head>
 <body><main>
@@ -126,7 +131,19 @@ function show(d){
  <div class="row"><button class="done" id="ok">Blade complete</button>${state.speak?'<button class="alt" id="ls">Listen</button>':''}<button class="alt" id="again">Another</button></div><audio id="au"></audio>`;
  $('ok').onclick=async()=>{await fetch('/api/complete',{method:'POST',body:JSON.stringify(b)});
   const s=await (await fetch('/api/stats')).json();
-  $('out').innerHTML=`<div class="win">${BLADE_SVG}<p class="big">${esc(s.message)}</p><p>${s.streak>1?`Blade streak: ${s.streak} days`:'You showed up. That is enough.'}</p></div>`;stats()};
+  $('out').innerHTML=`<div class="win">${BLADE_SVG}<p class="big">${esc(s.message)}</p><p>${s.streak>1?`Blade streak: ${s.streak} days`:'You showed up. That is enough.'}</p>
+   <div class="note" id="noteBox"><label for="note">What did you notice? (optional)</label>
+   <textarea id="note" rows="2" maxlength="300" placeholder="A dove, a pelican, a mango tree"></textarea>
+   <button id="tell">Tell Blade</button></div></div>`;stats();
+  $('tell').onclick=async()=>{const note=$('note').value.trim();if(!note)return;
+   $('tell').disabled=true;let t=0;$('tell').textContent='Blade is listening... 0s';
+   const tm=setInterval(()=>{t++;$('tell').textContent=`Blade is listening... ${t}s`},1000);
+   try{const r=await fetch('/api/reflect',{method:'POST',body:JSON.stringify({note,blade:b})});
+    const d=await r.json();if(!r.ok)throw new Error();
+    const src=d.source==='model'?`Written on this device by ${esc(d.model)}.`:'A preset reply.';
+    $('noteBox').innerHTML=`<p class="reply">${esc(d.reply)}</p><p class="src">${src}</p>`;
+   }catch(e){$('tell').disabled=false;$('tell').textContent='Tell Blade';$('noteBox').insertAdjacentHTML('beforeend','<p class="err">Could not reach Blade. Try again.</p>')}
+   finally{clearInterval(tm)}}};
  $('again').onclick=()=>$('go').click();
  if($('ls'))$('ls').onclick=async()=>{const r=await fetch('/api/speak',{method:'POST',body:JSON.stringify(b)});
   if(!r.ok){$('ls').textContent='Voice unavailable';return}$('au').src=URL.createObjectURL(await r.blob());$('au').play()};

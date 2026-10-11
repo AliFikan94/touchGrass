@@ -8,6 +8,7 @@ from pathlib import Path
 from . import live as livemod, log, speech
 from .facts import build_facts
 from .generate import make_blade
+from .reflect import clean_note, reflect
 
 PAGE = (Path(__file__).parent / "page.html").read_text(encoding="utf-8")
 
@@ -16,7 +17,7 @@ WEB_TIMEOUT = 60
 
 
 def context(f):
-    bits = [f"{f.season.capitalize()}, {f.climate}"]
+    bits = [f.season.capitalize() if f.season == f.climate else f"{f.season.capitalize()}, {f.climate}"]
     if f.place_name:
         bits.append(f.place_name)
     if f.weather != "unknown":
@@ -74,6 +75,16 @@ def make_handler(model, url, use_llm):
                         self._send(200, speech.synthesize(b), "audio/mpeg")
                     except speech.SpeechUnavailable as e:
                         self._send(503, json.dumps({"error": str(e)}))
+                elif self.path == "/api/reflect":
+                    note = clean_note(b.get("note", ""))
+                    if not note:
+                        raise ValueError("empty note")
+                    blade = b.get("blade") if isinstance(b.get("blade"), dict) else None
+                    notes = []
+                    reply, src = reflect(note, blade, model, url, use_llm, on_error=notes.append)
+                    log.annotate(note, reply)
+                    self._send(200, json.dumps({"reply": reply, "source": src, "model": model,
+                                                "note": notes[0] if notes else ""}))
                 elif self.path == "/api/complete":
                     log.record(b)
                     self._send(200, "{}")

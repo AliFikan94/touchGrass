@@ -6,6 +6,7 @@ from pathlib import Path
 from . import live as livemod, log, speech
 from .facts import build_facts
 from .generate import make_blade
+from .reflect import reflect
 from .llm import DEFAULT_MODEL, DEFAULT_URL, LLMUnavailable, generate
 from .voice import LOOK_SYSTEM
 
@@ -32,7 +33,8 @@ def main(argv=None):
                    help="opt in: look up local weather and recent sightings (sends location rounded to ~1 km)")
     t.add_argument("--speak", type=Path, metavar="OUT.mp3",
                    help="also save a spoken version (optional; needs ELEVENLABS_API_KEY)")
-    sub.add_parser("done", help="log today's Blade as complete (local file only)")
+    d = sub.add_parser("done", help="log today's Blade as complete (local file only)")
+    d.add_argument("--note", help="what you noticed; Blade replies in a line or two")
     sub.add_parser("stats", help="show your Blade count")
     s = sub.add_parser("serve", help="open the local web page")
     s.add_argument("--port", type=int, default=8317)
@@ -59,6 +61,12 @@ def main(argv=None):
     elif a.cmd == "done":
         log.record({"manual": True})
         print(log.message(log.stats()))
+        if a.note:
+            reply, src = reflect(a.note, None, a.model, a.ollama_url, not a.no_llm,
+                                 on_error=lambda r: print(f"[model skipped: {r}]", file=sys.stderr))
+            log.annotate(a.note, reply)
+            print(f"\n{reply}")
+            print(f"[{src}]", file=sys.stderr)
     elif a.cmd == "stats":
         s = log.stats()
         print(f"{log.message(s)}  ({s['total']} Blades collected)")

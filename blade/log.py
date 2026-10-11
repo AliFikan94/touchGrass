@@ -17,11 +17,19 @@ def record(blade, day=None):
         f.write(json.dumps(entry) + "\n")
 
 
+def annotate(note, reply, day=None):
+    """Save what the person noticed and Blade's reply. Does not count as a completed day by itself."""
+    entry = {"date": (day or date.today()).isoformat(), "note": note, "reply": reply, "annotation": True}
+    with open(_path(), "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
 def days_done():
     p = _path()
     if not p.exists():
         return set()
-    return {json.loads(l)["date"] for l in p.read_text().splitlines() if l.strip()}
+    entries = (json.loads(l) for l in p.read_text().splitlines() if l.strip())
+    return {e["date"] for e in entries if not e.get("annotation")}
 
 
 def stats(today=None):
