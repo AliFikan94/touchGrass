@@ -25,6 +25,9 @@ run `python -m blade today ... --speak blade.mp3`, or use the **Listen** button 
 appears when a key is set). Only the Blade text is sent; location, photos and your log never are.
 Without a key nothing changes: Blade stays fully local.
 
+Low on memory? Use the 1B model: `ollama pull gemma3:1b`, then set `BLADE_MODEL=gemma3:1b`
+(PowerShell: `$env:BLADE_MODEL="gemma3:1b"`) or pass `--model gemma3:1b` before the command.
+
 Python 3.10+, standard library only. Tests: `python -m unittest discover -s tests`.
 
 ## How it works

@@ -1,11 +1,12 @@
 """Tiny Ollama client. Talks to a local open-weight model; nothing leaves the machine."""
 import base64
 import json
+import os
 import urllib.error
 import urllib.request
 
 DEFAULT_URL = "http://localhost:11434"
-DEFAULT_MODEL = "gemma3:4b"
+DEFAULT_MODEL = os.environ.get("BLADE_MODEL", "gemma3:4b")
 
 
 class LLMUnavailable(Exception):

@@ -188,7 +188,7 @@ class ReasonTests(unittest.TestCase):
         reasons = []
         make_blade(facts(), url="http://127.0.0.1:9", on_error=reasons.append)
         self.assertEqual(len(reasons), 1)
-        self.assertIn("could not reach the model", reasons[0])
+        self.assertIn("model unavailable", reasons[0])
 
     def test_reports_bad_shape(self):
         class Bad(FakeOllama):

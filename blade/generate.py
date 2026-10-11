@@ -34,7 +34,7 @@ def make_blade(facts, interests=(), model="gemma3:4b", url="http://localhost:114
                 return data, "model"
             _report(on_error, f"model replied, but not in the expected shape: {raw[:300]}")
         except LLMUnavailable as exc:
-            _report(on_error, f"could not reach the model at {url} ({exc})")
+            _report(on_error, f"model unavailable at {url} ({exc})")
         except json.JSONDecodeError:
             _report(on_error, f"model reply was not valid JSON: {raw[:300]}")
     return fallback_blade(movement, obs), "fallback"
