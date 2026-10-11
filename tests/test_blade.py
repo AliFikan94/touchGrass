@@ -423,3 +423,27 @@ class ReflectTests(unittest.TestCase):
             main(["--no-llm", "done", "--note", "a dove, a pelican"])
         self.assertIn("Blade complete", buf.getvalue())
         self.assertIn("Noticed today: a dove, a pelican.", buf.getvalue())
+
+
+class WeatherTaskTests(unittest.TestCase):
+    def ids(self, f, runs=150):
+        out = set()
+        for seed in range(runs):
+            _, obs = candidates(f, [], n=60, rng=random.Random(seed))
+            out |= {o["id"] for o in obs}
+        return out
+
+    def test_no_rain_task_unless_weather_says_rain(self):
+        self.assertNotIn("rainleaf", self.ids(build_facts(NOW, 6.5, 3.4, 30)))               # unknown (Lagos, offline)
+        self.assertNotIn("rainleaf", self.ids(build_facts(NOW, 6.5, 3.4, 30, "clear, 31C")))
+        self.assertNotIn("rainleaf", self.ids(build_facts(NOW, 40.7, -74, 30, "light snow, -2C")))
+        self.assertIn("rainleaf", self.ids(build_facts(NOW, 6.5, 3.4, 30, "light rain, 24C")))
+
+    def test_rain_task_leads_when_wet(self):
+        _, obs = candidates(build_facts(NOW, 40.7, -74, 30, "rain, 9C"), [], rng=random.Random(5))
+        self.assertEqual(obs[0]["id"], "rainleaf")
+
+    def test_no_frost_outside_cold_climates(self):
+        winter = datetime(2026, 1, 15, 15, tzinfo=timezone.utc)
+        self.assertNotIn("frost", self.ids(build_facts(winter, 28.5, -81.4, 30)))  # Florida
+        self.assertIn("frost", self.ids(build_facts(winter, 45.0, -75.0, 30)))     # temperate

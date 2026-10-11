@@ -28,8 +28,9 @@ OBSERVATION = [
     {"id": "newgrowth", "tag": "plants", "text": "Find new growth: a bud, a shoot, a fresh leaf.", "seasons": ["spring", "summer"]},
     {"id": "seedhead", "tag": "plants", "text": "Find a seed head or a piece of fruit.", "seasons": ["summer", "autumn"]},
     {"id": "leafcolor", "tag": "season", "text": "Find a leaf that is changing colour.", "seasons": ["autumn"]},
-    {"id": "frost", "tag": "season", "text": "Look for frost patterns on grass or glass.", "seasons": ["autumn", "winter"]},
-    {"id": "rainleaf", "tag": "season", "text": "Watch rain on leaves. Listen to it."},
+    {"id": "frost", "tag": "season", "text": "Look for frost patterns on grass or glass.", "seasons": ["autumn", "winter"],
+     "climates": ["temperate", "boreal", "polar"]},
+    {"id": "rainleaf", "tag": "season", "text": "Watch rain on leaves. Listen to it.", "needs_weather": "rain"},
     {"id": "different", "tag": "season", "text": "Find something that wasn't there last week."},
     {"id": "trees3", "tag": "trees", "text": "Find three trees taller than you."},
     {"id": "bark", "tag": "trees", "text": "Notice three different bark textures."},
@@ -62,15 +63,17 @@ def candidates(facts, interests=(), n=6, rng=None):
     fits = [m for m in fits if m.get("needs") != "daylight_edge" or edge] or fits
     movement = rng.choice(fits)
     season = facts.season_key or facts.season
+    rainy = any(w in facts.weather.lower() for w in ("rain", "drizzle", "shower", "storm"))
     pool = [o for o in OBSERVATION
             if season in o.get("seasons", [season])
-            and o.get("needs_move", movement["id"]) == movement["id"]]
+            and o.get("needs_move", movement["id"]) == movement["id"]
+            and (not o.get("needs_weather") or rainy)  # never ask for rain unless the weather says so
+            and (not o.get("climates") or facts.climate in o["climates"] or not facts.climate)]
     liked = [o for o in pool if o["tag"] in interests]
     rest = [o for o in pool if o not in liked]
     rng.shuffle(liked)
     rng.shuffle(rest)
-    wet = any(w in facts.weather.lower() for w in ("rain", "drizzle", "shower", "snow", "storm"))
-    first = [o for o in pool if o["id"] == "rainleaf"] if wet else []
+    first = [o for o in pool if o["id"] == "rainleaf"]
     local = sighting_quests(facts, interests, rng)
     return movement, _dedupe(local + first + liked + rest)[:n]
 
