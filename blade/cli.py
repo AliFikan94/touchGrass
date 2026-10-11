@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import log
+from . import log, speech
 from .facts import build_facts
 from .generate import make_blade
 from .llm import DEFAULT_MODEL, DEFAULT_URL, LLMUnavailable, generate
@@ -28,6 +28,8 @@ def main(argv=None):
     t.add_argument("--minutes", type=int, default=20)
     t.add_argument("--weather", default="unknown")
     t.add_argument("--interest", action="append", default=[], help="birds plants trees light senses water")
+    t.add_argument("--speak", type=Path, metavar="OUT.mp3",
+                   help="also save a spoken version (optional; needs ELEVENLABS_API_KEY)")
     sub.add_parser("done", help="log today's Blade as complete (local file only)")
     sub.add_parser("stats", help="show your Blade count")
     s = sub.add_parser("serve", help="open the local web page")
@@ -42,6 +44,12 @@ def main(argv=None):
         blade, src = make_blade(facts, [i.lower() for i in a.interest], a.model, a.ollama_url, not a.no_llm)
         print(render(blade))
         print(f"\n[{src}]", file=sys.stderr)
+        if a.speak:
+            try:
+                a.speak.write_bytes(speech.synthesize(blade))
+                print(f"Spoken Blade saved to {a.speak}", file=sys.stderr)
+            except speech.SpeechUnavailable as e:
+                sys.exit(str(e))
     elif a.cmd == "done":
         log.record({"manual": True})
         print(log.message(log.stats()))

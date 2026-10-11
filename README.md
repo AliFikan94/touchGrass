@@ -20,6 +20,11 @@ python -m blade done             # log it (local file: ~/.blade/log.jsonl)
 python -m blade look leaf.jpg    # ask the local vision model about a photo
 ```
 
+Optional: hear it instead of reading it. Set `ELEVENLABS_API_KEY` (and optionally `ELEVENLABS_VOICE_ID`) and
+run `python -m blade today ... --speak blade.mp3`, or use the **Listen** button on the web page (it only
+appears when a key is set). Only the Blade text is sent; location, photos and your log never are.
+Without a key nothing changes: Blade stays fully local.
+
 Python 3.10+, standard library only. Tests: `python -m unittest discover -s tests`.
 
 ## How it works

@@ -131,3 +131,53 @@ class WebTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpeechTests(unittest.TestCase):
+    BLADE = {"movement": "Walk fifteen minutes.", "observations": ["Find three birds."],
+             "closing": "Phone away."}
+
+    def test_script_order(self):
+        from blade import speech
+        self.assertEqual(speech.script(self.BLADE),
+                         "Move. Walk fifteen minutes. Notice. Find three birds. Phone away.")
+
+    def test_disabled_without_key(self):
+        from blade import speech
+        os.environ.pop("ELEVENLABS_API_KEY", None)
+        self.assertFalse(speech.enabled())
+        with self.assertRaises(speech.SpeechUnavailable):
+            speech.synthesize(self.BLADE)
+
+    def test_synthesize_sends_key_and_text(self):
+        from blade import speech
+        seen = {}
+
+        class Fake(BaseHTTPRequestHandler):
+            def do_POST(self):
+                seen["key"] = self.headers["xi-api-key"]
+                seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                self.send_response(200)
+                self.send_header("Content-Length", "3")
+                self.end_headers()
+                self.wfile.write(b"mp3")
+
+            def log_message(self, *a):
+                pass
+
+        srv, url = serve(Fake)
+        os.environ["ELEVENLABS_API_KEY"] = "test-key"
+        try:
+            self.assertEqual(speech.synthesize(self.BLADE, base=url), b"mp3")
+        finally:
+            del os.environ["ELEVENLABS_API_KEY"]
+        self.assertEqual(seen["key"], "test-key")
+        self.assertEqual(seen["body"]["text"], speech.script(self.BLADE))
+        self.assertNotIn("lat", json.dumps(seen["body"]))
+
+    def test_web_speak_503_without_key(self):
+        os.environ.pop("ELEVENLABS_API_KEY", None)
+        srv, url = serve(make_handler("m", "http://127.0.0.1:9", False))
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(urllib.request.Request(url + "/api/speak", json.dumps(self.BLADE).encode()))
+        self.assertEqual(cm.exception.code, 503)

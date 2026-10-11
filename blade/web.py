@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from . import log
+from . import log, speech
 from .facts import build_facts
 from .generate import make_blade
 
@@ -25,12 +25,13 @@ li{margin:.4rem 0}.close{font-style:italic;color:var(--grass)}</style>
 <label>Interest<select id=int><option value="">Anything</option><option>birds</option><option>plants</option>
 <option>trees</option><option>light</option><option>senses</option><option>water</option></select></label>
 <button id=go>Get today's Blade</button><div id=out></div></main><script>
-const $=i=>document.getElementById(i);let cur=null;
-async function stats(){const s=await (await fetch('/api/stats')).json();$('msg').textContent=s.message}
+const $=i=>document.getElementById(i);let cur=null,speak=false;
+async function stats(){const s=await (await fetch('/api/stats')).json();$('msg').textContent=s.message;speak=s.speech}
 $('go').onclick=async()=>{$('out').innerHTML='<p class=sub>Listening to the grass...</p>';
 const r=await fetch('/api/blade',{method:'POST',body:JSON.stringify({minutes:+$('min').value,lat:+$('lat').value,lon:+$('lon').value,interest:$('int').value})});
 const d=await r.json();cur=d.blade;
-$('out').innerHTML='<div class=card><p><b>Move.</b> '+esc(cur.movement)+'</p><b>Notice.</b><ul>'+cur.observations.map(o=>'<li>'+esc(o)+'</li>').join('')+'</ul><p class=close>'+esc(cur.closing)+'</p><p class=sub>('+d.source+')</p></div><button class=done id=ok>Blade complete</button>';
+$('out').innerHTML='<div class=card><p><b>Move.</b> '+esc(cur.movement)+'</p><b>Notice.</b><ul>'+cur.observations.map(o=>'<li>'+esc(o)+'</li>').join('')+'</ul><p class=close>'+esc(cur.closing)+'</p><p class=sub>('+d.source+')</p></div><button class=done id=ok>Blade complete</button>'+(speak?' <button id=ls>Listen</button><audio id=au></audio>':'');
+if(speak)$('ls').onclick=async()=>{const r=await fetch('/api/speak',{method:'POST',body:JSON.stringify(cur)});if(!r.ok){$('ls').textContent='Voice unavailable';return}$('au').src=URL.createObjectURL(await r.blob());$('au').play()};
 $('ok').onclick=async()=>{await fetch('/api/complete',{method:'POST',body:JSON.stringify(cur)});$('out').innerHTML='';stats()}};
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}stats()</script>"""
 
@@ -54,7 +55,7 @@ def make_handler(model, url, use_llm):
                 self._send(200, PAGE, "text/html")
             elif self.path == "/api/stats":
                 s = log.stats()
-                self._send(200, json.dumps({**s, "message": log.message(s)}))
+                self._send(200, json.dumps({**s, "message": log.message(s), "speech": speech.enabled()}))
             else:
                 self._send(404, "{}")
 
@@ -67,6 +68,11 @@ def make_handler(model, url, use_llm):
                     blade, src = make_blade(facts, [b["interest"]] if b.get("interest") else [],
                                             model, url, use_llm)
                     self._send(200, json.dumps({"blade": blade, "source": src}))
+                elif self.path == "/api/speak":
+                    try:
+                        self._send(200, speech.synthesize(b), "audio/mpeg")
+                    except speech.SpeechUnavailable as e:
+                        self._send(503, json.dumps({"error": str(e)}))
                 elif self.path == "/api/complete":
                     log.record(b)
                     self._send(200, "{}")
